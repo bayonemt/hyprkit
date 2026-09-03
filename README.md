@@ -7,6 +7,7 @@ A small kit of desktop overlays for [Hyprland](https://hyprland.org), built with
 | [**hyprgrid**](hyprgrid/) | GNOME-style application grid | `Super+A` |
 | [**hyprnote**](hyprnote/) | a notebook on top of your desktop, one Markdown file per page | `Super+N` |
 | [**hyprclip**](hyprclip/) | floating clipboard history panel (cliphist) | `Super+V` |
+| [**hyprws**](hyprws/) | workspace overview with drag-and-drop | `Super+Tab` |
 
 Each one is a layer-shell overlay that runs as a daemon and is toggled through Quickshell IPC, so it opens instantly. Hyprland does the blur.
 
@@ -28,9 +29,15 @@ Two ruled pages, save with `Ctrl+S`, new page with `Ctrl+N`, every page a plain 
 
 Opens at the cursor, text previews and image thumbnails, `Enter` copies, `Del` forgets. [Details →](hyprclip/README.md)
 
+## hyprws
+
+![hyprws](assets/hyprws.png)
+
+Every workspace as a live miniature. Drag windows between them, click to switch, middle-click to close. [Details →](hyprws/README.md)
+
 ## Requirements
 
-- Hyprland (tested on 0.56, works with both the Lua and the classic config)
+- Hyprland (tested on 0.56, works with both the Lua and the classic config; hyprws needs 0.55+)
 - Quickshell 0.3 or newer, Qt 6 with QtQuick
 - hyprclip also needs `cliphist` and `wl-clipboard`
 - Optional for hyprgrid: the Qt GTK platform theme plugin, so icons come from your GTK icon theme
@@ -48,13 +55,15 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("~/.config/quickshell/hyprkit/hyprgrid/scripts/toggle.sh --daemon")
   hl.exec_cmd("~/.config/quickshell/hyprkit/hyprnote/scripts/toggle.sh --daemon")
   hl.exec_cmd("~/.config/quickshell/hyprkit/hyprclip/scripts/toggle.sh --daemon")
+  hl.exec_cmd("~/.config/quickshell/hyprkit/hyprws/scripts/toggle.sh --daemon")
 end)
 
 hl.bind("SUPER + A", hl.dsp.exec_cmd("~/.config/quickshell/hyprkit/hyprgrid/scripts/toggle.sh"))
 hl.bind("SUPER + N", hl.dsp.exec_cmd("~/.config/quickshell/hyprkit/hyprnote/scripts/toggle.sh"))
 hl.bind("SUPER + V", hl.dsp.exec_cmd("~/.config/quickshell/hyprkit/hyprclip/scripts/toggle.sh"))
+hl.bind("SUPER + TAB", hl.dsp.exec_cmd("~/.config/quickshell/hyprkit/hyprws/scripts/toggle.sh"))
 
-for _, ns in ipairs({ "hyprgrid", "hyprnote", "hyprclip" }) do
+for _, ns in ipairs({ "hyprgrid", "hyprnote", "hyprclip", "hyprws" }) do
   hl.layer_rule({ name = ns, match = { namespace = "^(" .. ns .. ")$" }, blur = true, ignore_alpha = 0.2 })
 end
 ```
@@ -65,10 +74,12 @@ With the classic `hyprland.conf`:
 exec-once = ~/.config/quickshell/hyprkit/hyprgrid/scripts/toggle.sh --daemon
 exec-once = ~/.config/quickshell/hyprkit/hyprnote/scripts/toggle.sh --daemon
 exec-once = ~/.config/quickshell/hyprkit/hyprclip/scripts/toggle.sh --daemon
+exec-once = ~/.config/quickshell/hyprkit/hyprws/scripts/toggle.sh --daemon
 
 bind = SUPER, A, exec, ~/.config/quickshell/hyprkit/hyprgrid/scripts/toggle.sh
 bind = SUPER, N, exec, ~/.config/quickshell/hyprkit/hyprnote/scripts/toggle.sh
 bind = SUPER, V, exec, ~/.config/quickshell/hyprkit/hyprclip/scripts/toggle.sh
+bind = SUPER, TAB, exec, ~/.config/quickshell/hyprkit/hyprws/scripts/toggle.sh
 
 layerrule = blur, hyprgrid
 layerrule = ignorealpha 0.2, hyprgrid
@@ -76,6 +87,8 @@ layerrule = blur, hyprnote
 layerrule = ignorealpha 0.2, hyprnote
 layerrule = blur, hyprclip
 layerrule = ignorealpha 0.2, hyprclip
+layerrule = blur, hyprws
+layerrule = ignorealpha 0.2, hyprws
 ```
 
 You can take only the ones you want; each folder is self-contained. Blur has to be enabled in `decoration:blur` for the backdrop effect to show.
