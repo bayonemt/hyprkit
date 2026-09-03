@@ -13,8 +13,8 @@ FocusScope {
 
     readonly property bool pt: String(Quickshell.env("LANG") || "").toLowerCase().indexOf("pt") === 0
     readonly property var tr: pt
-        ? { title: "Áreas de trabalho", newWs: "Nova", hint: "Arraste uma janela para outra área  ·  clique para trocar  ·  botão do meio fecha a janela  ·  1–9 troca  ·  Esc fecha" }
-        : { title: "Workspaces", newWs: "New", hint: "Drag a window to another workspace  ·  click to switch  ·  middle-click closes a window  ·  1–9 switch  ·  Esc closes" }
+        ? { title: "Áreas de trabalho", newWs: "Nova", hint: "Arraste uma janela para outra área (até em outro monitor)  ·  clique para trocar  ·  botão do meio fecha a janela  ·  1–9 troca  ·  Esc fecha" }
+        : { title: "Workspaces", newWs: "New", hint: "Drag a window to another workspace, even on another monitor  ·  click to switch  ·  middle-click closes a window  ·  1–9 switch  ·  Esc closes" }
 
     readonly property real sc: Math.max(0.6, Math.pow(width / 1920, 0.85))
     function s(v) { return Math.round(v * sc) }
@@ -47,9 +47,10 @@ FocusScope {
         const list = [];
         let maxId = 0;
         for (const w of d.workspaces) {
-            if (w.id <= 0 || w.monitor !== m.name) continue;   // skip special workspaces and other monitors
+            if (w.id <= 0) continue;                              // skip special workspaces
+            maxId = Math.max(maxId, w.id);                        // across all monitors, so "New" ids do not collide
+            if (w.monitor !== m.name) continue;
             list.push({ id: w.id, name: String(w.name), isNew: false, windows: [] });
-            maxId = Math.max(maxId, w.id);
         }
         list.sort((a, b) => a.id - b.id);
         for (const c of d.clients) {
@@ -81,9 +82,14 @@ FocusScope {
     function switchTo(ws) { ov.dispatch("hl.dsp.focus({ workspace = " + lua(String(ws.id)) + " })"); ov.requestClose(); }
     function focusWindow(address) { ov.dispatch("hl.dsp.focus({ window = " + lua("address:" + address) + " })"); ov.requestClose(); }
     function closeWindow(address) { ov.busy = true; ov.dispatch("hl.dsp.window.close({ window = " + lua("address:" + address) + " })"); }
-    function moveWindow(address, wsId) {
+    // newOnMonitor: when dropping on a "New" card of another monitor, the fresh workspace
+    // must be moved to that monitor after it is created by the window move.
+    function moveWindow(address, wsId, newOnMonitor) {
         ov.busy = true;
-        ov.dispatch("hl.dsp.window.move({ window = " + lua("address:" + address) + ", workspace = " + lua(String(wsId)) + ", follow = false })");
+        let code = "hl.dsp.window.move({ window = " + lua("address:" + address) + ", workspace = " + lua(String(wsId)) + ", follow = false })";
+        if (newOnMonitor && newOnMonitor !== "")
+            code = code + "); hl.dispatch(hl.dsp.workspace.move({ workspace = " + lua(String(wsId)) + ", monitor = " + lua(newOnMonitor) + " })";
+        ov.dispatch(code);
     }
 
     Timer { id: refreshTimer; interval: 120; onTriggered: ov.refresh() }
@@ -128,27 +134,28 @@ FocusScope {
         MouseArea { anchors.fill: parent; onClicked: ov.requestClose() }
     }
 
-    // ---- drag state (manual: a ghost follows the pointer, drop target is hit-tested on release) ----
-    QtObject {
-        id: dnd
-        property bool active: false
-        property var win: null          // window model being dragged
-        property int fromWs: -1
-        property real gx: 0             // ghost position in overlay coordinates
-        property real gy: 0
-        property real gw: 0
-        property real gh: 0
-        property int overWs: -1         // index of the card under the pointer
-        function cancel() { active = false; win = null; fromWs = -1; overWs = -1; }
-        function updateTarget() {
-            overWs = -1;
-            for (let i = 0; i < cards.count; i++) {
-                const c = cards.itemAt(i);
-                if (!c) continue;
-                const p = c.mapFromItem(ov, gx + gw / 2, gy + gh / 2);
-                if (p.x >= 0 && p.y >= 0 && p.x <= c.width && p.y <= c.height) { overWs = i; return; }
-            }
+    // ---- drag state: shared object from Main.qml (global coordinates) ----
+    property var dnd: null
+    function inMonitor(gx, gy) { return ov.mon && gx >= ov.mon.x && gy >= ov.mon.y && gx < ov.mon.x + ov.mon.w && gy < ov.mon.y + ov.mon.h; }
+    // Called on every pointer move while dragging; only the overlay under the pointer answers.
+    function hitTest() {
+        if (!dnd || !dnd.active || !ov.mon) return;
+        const cx = dnd.gx + dnd.gw / 2, cy = dnd.gy + dnd.gh / 2;
+        if (!inMonitor(cx, cy)) return;
+        const lx = cx - ov.mon.x, ly = cy - ov.mon.y;
+        let hit = -1, isNew = false;
+        for (let i = 0; i < cards.count; i++) {
+            const c = cards.itemAt(i);
+            if (!c) continue;
+            const p = c.mapFromItem(ov, lx, ly);
+            if (p.x >= 0 && p.y >= 0 && p.x <= c.width && p.y <= c.height) { hit = ov.workspaces[i].id; isNew = ov.workspaces[i].isNew; break; }
         }
+        dnd.targetWs = hit; dnd.targetMon = ov.monitorName; dnd.targetIsNew = isNew;
+    }
+    Connections {
+        target: ov.dnd
+        function onGxChanged() { ov.hitTest() }
+        function onGyChanged() { ov.hitTest() }
     }
 
     // ---- content ----
@@ -199,7 +206,7 @@ FocusScope {
                     required property var modelData
                     readonly property bool isActive: modelData.id === ov.activeWs
                     readonly property bool isSelected: ov.selectedWs === index
-                    readonly property bool isDropTarget: dnd.active && dnd.overWs === index && dnd.fromWs !== modelData.id
+                    readonly property bool isDropTarget: dnd && dnd.active && dnd.targetMon === ov.monitorName && dnd.targetWs === modelData.id && dnd.fromWs !== modelData.id
                     width: content.cardW
                     height: content.cardH + ov.s(30)
 
@@ -239,7 +246,7 @@ FocusScope {
                             delegate: Item {
                                 id: win
                                 required property var modelData
-                                readonly property bool beingDragged: dnd.active && dnd.win && dnd.win.address === modelData.address
+                                readonly property bool beingDragged: dnd && dnd.active && dnd.win && dnd.win.address === modelData.address
                                 x: Math.round(modelData.x * content.k)
                                 y: Math.round(modelData.y * content.k)
                                 width: Math.max(ov.s(24), Math.round(modelData.w * content.k))
@@ -315,16 +322,16 @@ FocusScope {
                                             dnd.gw = win.width; dnd.gh = win.height; dnd.active = true;
                                         }
                                         const p = win.mapToItem(ov, m.x, m.y);
-                                        dnd.gx = p.x - pressX; dnd.gy = p.y - pressY;
-                                        dnd.updateTarget();
+                                        dnd.gx = p.x - pressX + ov.mon.x; dnd.gy = p.y - pressY + ov.mon.y;
+                                        ov.hitTest();
                                     }
                                     onReleased: (m) => {
                                         if (m.button === Qt.MiddleButton) { ov.closeWindow(win.modelData.address); return; }
                                         if (!moved) { ov.focusWindow(win.modelData.address); return; }
-                                        const target = dnd.overWs >= 0 ? ov.workspaces[dnd.overWs] : null;
+                                        const targetWs = dnd.targetWs, targetMon = dnd.targetMon, isNew = dnd.targetIsNew;
                                         const addr = win.modelData.address, from = dnd.fromWs;
                                         dnd.cancel();
-                                        if (target && target.id !== from) ov.moveWindow(addr, target.id);
+                                        if (targetWs >= 0 && targetWs !== from) ov.moveWindow(addr, targetWs, isNew ? targetMon : "");
                                     }
                                     onCanceled: dnd.cancel()
                                 }
@@ -355,15 +362,16 @@ FocusScope {
 
     // ---- drag ghost ----
     Rectangle {
-        visible: dnd.active
-        x: dnd.gx; y: dnd.gy; width: dnd.gw; height: dnd.gh
+        visible: dnd && dnd.active && ov.mon && ov.inMonitor(dnd.gx + dnd.gw / 2, dnd.gy + dnd.gh / 2)
+        x: dnd && ov.mon ? dnd.gx - ov.mon.x : 0; y: dnd && ov.mon ? dnd.gy - ov.mon.y : 0
+        width: dnd ? dnd.gw : 0; height: dnd ? dnd.gh : 0
         radius: ov.s(5)
         color: Qt.rgba(0.2, 0.2, 0.25, 0.9)
         border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.8)
         z: 100
         Text {
             anchors.centerIn: parent; width: parent.width - ov.s(8)
-            text: dnd.win ? dnd.win.title : ""
+            text: dnd && dnd.win ? dnd.win.title : ""
             color: "white"; font.pixelSize: ov.s(10); elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter
         }
     }

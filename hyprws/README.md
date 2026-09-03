@@ -2,13 +2,14 @@
 
 A workspace overview with drag-and-drop for [Hyprland](https://hyprland.org), built with [Quickshell](https://quickshell.org).
 
-Press a key and every workspace on the current monitor shows up as a miniature, with its windows drawn where they really are and updating live. Drag a window onto another card to move it there, click a card to switch, click a window to focus it.
+Press a key and every monitor shows its workspaces as miniatures, with the windows drawn where they really are and updating live. Drag a window onto another card to move it there, even a card on another monitor. Click a card to switch, click a window to focus it.
 
 ![hyprws screenshot](../assets/hyprws.png)
 
 ## Features
 
-- One card per workspace on the focused monitor, keeping the monitor's aspect ratio, plus a "New" card that creates the next workspace
+- Opens on every monitor at once; each one shows its own workspaces as cards in the monitor's aspect ratio, plus a "New" card that creates the next workspace
+- Multi-monitor drag-and-drop: start dragging on one screen, move the mouse to the other, drop on a card there. The window moves to that monitor's workspace
 - Windows drawn at their real position and size, with live thumbnails (falls back to app icon and title when a window cannot be captured)
 - Drag a window between cards to move it; the target card lights up, the window stays where it is until you drop
 - Click a card to switch, click a window to focus it, middle-click a window to close it
@@ -66,6 +67,7 @@ layerrule = ignorealpha 0.2, hyprws
 | click the "New" card | create and switch to the next workspace |
 | click a window | focus it (switching workspace if needed) |
 | drag a window onto another card | move it there, without switching |
+| drag a window onto a card on another monitor | move it to that monitor's workspace |
 | middle-click a window | close it |
 | `1`–`9` | switch to that workspace |
 | `←` `→` then `Enter` | select and switch |
@@ -81,7 +83,7 @@ quickshell ipc -p ~/.config/quickshell/hyprkit/hyprws/Main.qml call hyprws close
 
 ## How it works
 
-State comes from `hyprctl -j monitors`, `workspaces` and `clients`, re-read whenever Hyprland emits an event while the overview is open. Actions go through `hyprctl eval` with the Lua dispatchers (`hl.dsp.focus`, `hl.dsp.window.move`, `hl.dsp.window.close`), so they work with the Lua config format introduced in Hyprland 0.55. Drag-and-drop is done by hand: a ghost follows the pointer and the drop target is hit-tested on release, which keeps the window items inside their (clipped) cards.
+State comes from `hyprctl -j monitors`, `workspaces` and `clients`, re-read whenever Hyprland emits an event while the overview is open. Actions go through `hyprctl eval` with the Lua dispatchers (`hl.dsp.focus`, `hl.dsp.window.move`, `hl.dsp.window.close`), so they work with the Lua config format introduced in Hyprland 0.55. Drag-and-drop is done by hand: a ghost follows the pointer and the drop target is hit-tested on release, which keeps the window items inside their (clipped) cards. There is one overlay per monitor, and they share a single drag state in global coordinates. While the button is held the compositor keeps sending pointer motion to the overlay where the drag started, so that overlay publishes the global pointer position and the overlay under the pointer draws the ghost and highlights its card. Dropping on another monitor's "New" card moves the window to the fresh workspace and then moves that workspace to the right monitor.
 
 ## Tweaking
 

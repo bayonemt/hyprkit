@@ -33,7 +33,7 @@ Opens at the cursor, text previews and image thumbnails, `Enter` copies, `Del` f
 
 ![hyprws](assets/hyprws.png)
 
-Every workspace as a live miniature. Drag windows between them, click to switch, middle-click to close. [Details →](hyprws/README.md)
+Every workspace as a live miniature, on every monitor. Drag windows between them, even across monitors; click to switch, middle-click to close. [Details →](hyprws/README.md)
 
 ## Requirements
 
@@ -96,7 +96,7 @@ You can take only the ones you want; each folder is self-contained. Blur has to 
 ## Common bits
 
 - `scripts/toggle.sh` starts the daemon if needed and toggles the overlay. `--daemon` only starts it.
-- Every overlay opens on the monitor Hyprland has focused.
+- Every overlay opens on the monitor Hyprland has focused (hyprws opens on all of them).
 - The UI is in English, or Brazilian Portuguese when `LANG` starts with `pt`.
 - After editing a QML file, restart that daemon: `pkill -f <name>/Main.qml` and run `toggle.sh --daemon` again.
 
