@@ -170,10 +170,14 @@ FocusScope {
         // card size keeps the monitor aspect ratio; shrink when there are many workspaces
         readonly property real aspect: ov.mon ? ov.mon.h / ov.mon.w : 9 / 16
         // few workspaces: big cards (up to 560px); many: shrink so they fit in one row, then wrap
-        readonly property int maxCardW: ov.s(560)
+        readonly property int maxCardW: ov.s(800)
         readonly property int minCardW: ov.s(300)
         readonly property int perRow: Math.max(1, Math.min(ov.workspaces.length, Math.floor((ov.width - ov.s(120) + ov.s(28)) / (minCardW + ov.s(28)))))
-        readonly property int cardW: Math.max(minCardW, Math.min(maxCardW, Math.floor((ov.width - ov.s(120) - (perRow - 1) * ov.s(28)) / perRow)))
+        readonly property int rows: Math.max(1, Math.ceil(ov.workspaces.length / perRow))
+        // fit horizontally in one row, and vertically when the cards wrap into several rows
+        readonly property int fitW: Math.floor((ov.width - ov.s(120) - (perRow - 1) * ov.s(28)) / perRow)
+        readonly property int fitH: Math.floor(((ov.height - ov.s(260) - (rows - 1) * ov.s(28)) / rows - ov.s(30)) / aspect)
+        readonly property int cardW: Math.max(minCardW, Math.min(maxCardW, fitW, fitH))
         readonly property int cardH: Math.round(cardW * aspect)
         readonly property real k: ov.mon ? cardW / ov.mon.w : 0.15
 
