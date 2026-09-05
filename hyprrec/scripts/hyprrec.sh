@@ -94,7 +94,12 @@ status() {
     local rp="" rec=0 start=0 last="" mon=""
     rp=$(replay_pid) && mon=$(cat "$STATE/replay.monitor" 2>/dev/null)
     [ -f "$STATE/recording" ] && rec=1 && start=$(cat "$STATE/recording.start" 2>/dev/null || echo 0)
+    # last saved file, only if it still exists; otherwise the newest file left in the folders
     [ -f "$STATE/last_saved" ] && last=$(cat "$STATE/last_saved")
+    if [ -z "$last" ] || [ ! -f "$last" ]; then
+        last=$(ls -t "$VIDEOS_DIR"/Replays/*.mp4 "$VIDEOS_DIR"/Recordings/*.mp4 2>/dev/null | head -1)
+        [ -n "$last" ] && printf '%s\n' "$last" > "$STATE/last_saved" || rm -f "$STATE/last_saved"
+    fi
     printf '{"replay":%s,"recording":%s,"start":%s,"replaySeconds":%s,"monitor":"%s","dir":"%s","last":"%s"}\n' \
         "$([ -n "$rp" ] && echo true || echo false)" "$([ "$rec" = 1 ] && echo true || echo false)" "${start:-0}" "$REPLAY_SECONDS" "$mon" "$VIDEOS_DIR" "${last//\"/\\\"}"
 }
